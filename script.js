@@ -203,27 +203,23 @@ document.addEventListener('DOMContentLoaded', function() {
         let explanation = 'Visual enhancements applied:\n\n';
         const improvements = [];
 
-        // Improve variable naming
-        const poorVarNames = improvedCode.match(/\b[a-z]\b/g);
-        if (poorVarNames) {
-            // Example: improve single letter variables
-            improvedCode = improvedCode.replace(/\blet x\b/g, 'let counter');
-            improvedCode = improvedCode.replace(/\blet i\b/g, 'let index');
-            improvedCode = improvedCode.replace(/\blet n\b/g, 'let number');
+        // Improve variable naming - only for variable declarations
+        if (/\b(let|const|var)\s+[a-z]\b/g.test(improvedCode)) {
+            // Example: improve single letter variables in declarations
+            improvedCode = improvedCode.replace(/\b(let|const|var)\s+x\b/g, '$1 counter');
+            improvedCode = improvedCode.replace(/\b(let|const|var)\s+i\b/g, '$1 index');
+            improvedCode = improvedCode.replace(/\b(let|const|var)\s+n\b/g, '$1 number');
             improvements.push('• Improved variable names for clarity');
         }
-
-        // Add proper spacing
-        improvedCode = improvedCode.replace(/([{,;])\s*/g, '$1\n    ');
-        improvedCode = improvedCode.replace(/\n\s+\n/g, '\n\n');
         
-        // Add comments for code blocks
-        if (improvedCode.includes('function')) {
+        // Add comments for function declarations (more precise pattern)
+        if (/\bfunction\s+\w+\s*\(/.test(improvedCode)) {
             const lines = improvedCode.split('\n');
             const enhanced = [];
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                if (line.includes('function') && !lines[i-1]?.includes('//')) {
+                // Only match function declarations, not strings or method calls
+                if (/^\s*function\s+\w+\s*\(/.test(line) && !lines[i-1]?.includes('//')) {
                     enhanced.push('// Function definition');
                 }
                 enhanced.push(line);
@@ -244,10 +240,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return indented;
         }).join('\n');
         improvements.push('• Applied consistent indentation');
-
-        // Add proper line breaks
-        improvedCode = improvedCode.replace(/;(?!\n)/g, ';\n');
-        improvements.push('• Added proper line breaks for readability');
+        improvements.push('• Improved code formatting and readability');
 
         // Apply additional instructions
         if (instructions) {
@@ -258,8 +251,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             if (instructions.toLowerCase().includes('es6') || instructions.toLowerCase().includes('modern')) {
-                improvedCode = improvedCode.replace(/var /g, 'const ');
-                improvements.push('• Converted var to const/let (ES6)');
+                // Convert var to let (safer than const as we don't know if values are reassigned)
+                improvedCode = improvedCode.replace(/\bvar\b/g, 'let');
+                improvements.push('• Converted var to let (ES6)');
             }
         }
 
