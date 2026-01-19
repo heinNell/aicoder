@@ -1,0 +1,19 @@
+{
+  "name": "aicoder",
+  "version": "1.0.0",
+  "description": "AI Code Improver - Repair errors and enhance code visually",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["ai", "code", "improver", "repair", "enhancement"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "openai": "^4.20.1",
+    "dotenv": "^16.3.1"
+  }
+}
