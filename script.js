@@ -204,7 +204,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const improvements = [];
 
         // Improve variable naming - only for variable declarations
-        if (/\b(let|const|var)\s+[a-z]\b/g.test(improvedCode)) {
+        // Note: This is a simple example improvement. In real scenarios, preserve
+        // meaningful single-letter variables (e.g., in math operations, coordinates)
+        if (/\b(let|const|var)\s+[a-z]\b/.test(improvedCode)) {
             // Example: improve single letter variables in declarations
             improvedCode = improvedCode.replace(/\b(let|const|var)\s+x\b/g, '$1 counter');
             improvedCode = improvedCode.replace(/\b(let|const|var)\s+i\b/g, '$1 index');
@@ -246,7 +248,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (instructions) {
             if (instructions.toLowerCase().includes('typescript')) {
                 improvedCode = '// TypeScript version\n' + improvedCode;
-                improvedCode = improvedCode.replace(/let (\w+)/g, 'let $1: any');
+                // Note: In a real AI implementation, type inference would be used
+                // For demo purposes, we use a basic type annotation
+                improvedCode = improvedCode.replace(/let (\w+)(?!\s*:)/g, 'let $1: unknown');
                 improvements.push('• Added TypeScript type annotations');
             }
             
