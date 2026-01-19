@@ -1,87 +1,584 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Code Improver</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Code Improver Pro</title>
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Prism.js for Syntax Highlighting -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
     <div class="container">
-        <header>
-            <h1>🤖 AI Code Improver</h1>
-            <p class="subtitle">Paste your code, choose your improvement type, and let AI do the magic!</p>
-        </header>
+      <header>
+        <h1>🤖 AI Code Improver <span class="pro-badge">PRO</span></h1>
+        <p class="subtitle">
+          Advanced AI-powered code transformation • Real-time improvements •
+          Multi-language support
+        </p>
+        <div class="header-stats" id="headerStats">
+          <span class="stat" id="statProvider">Provider: Demo</span>
+          <span class="stat" id="statModel">Model: Mock</span>
+          <span class="stat" id="statHistory">History: 0</span>
+        </div>
+      </header>
 
-        <main>
-            <div class="input-section">
-                <div class="form-group">
-                    <label for="codeInput">Your Code:</label>
-                    <textarea 
-                        id="codeInput" 
-                        placeholder="Paste your code snippet here..."
-                        rows="10"
-                    ></textarea>
-                </div>
+      <main>
+        <!-- Quick Actions Bar -->
+        <div class="quick-actions">
+          <button
+            class="quick-btn"
+            id="clearAllBtn"
+            title="Clear All (Ctrl+Shift+X)"
+          >
+            🗑️ Clear
+          </button>
+          <button
+            class="quick-btn"
+            id="formatBtn"
+            title="Auto-Format (Ctrl+Shift+F)"
+          >
+            📐 Format
+          </button>
+          <button
+            class="quick-btn"
+            id="historyBtn"
+            title="View History (Ctrl+H)"
+          >
+            📜 History
+          </button>
+          <button class="quick-btn" id="exportBtn" title="Export Code">
+            📤 Export
+          </button>
+          <button class="quick-btn" id="settingsBtn" title="Quick Settings">
+            ⚡ Quick
+          </button>
+          <div class="language-detector">
+            <span>🔍 Detected:</span>
+            <span id="detectedLanguage" class="detected-lang">Auto-detect</span>
+          </div>
+        </div>
 
-                <div class="form-group">
-                    <label for="improvementMode">Improvement Mode:</label>
-                    <select id="improvementMode">
-                        <option value="error-repair">Error Repair</option>
-                        <option value="visual-enhancement">Visual Enhancement</option>
-                    </select>
-                </div>
-
-                <div class="form-group error-input-group">
-                    <label for="errorInput">Console Error (Optional):</label>
-                    <textarea 
-                        id="errorInput" 
-                        placeholder="Paste console error message here if you have one..."
-                        rows="4"
-                    ></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="additionalInstructions">Additional Instructions (Optional):</label>
-                    <textarea 
-                        id="additionalInstructions" 
-                        placeholder="Any specific improvements you want? (e.g., 'add comments', 'improve variable names', 'add error handling')"
-                        rows="3"
-                    ></textarea>
-                </div>
-
-                <button id="improveBtn" class="btn-primary">
-                    ✨ Improve Code
+        <div class="main-grid">
+          <!-- Input Panel -->
+          <div class="panel input-panel">
+            <div class="panel-header">
+              <h3>📝 Input Code</h3>
+              <div class="panel-actions">
+                <select id="languageSelect" class="language-select">
+                  <option value="auto">Auto-detect</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="typescript">TypeScript</option>
+                  <option value="python">Python</option>
+                  <option value="java">Java</option>
+                  <option value="csharp">C#</option>
+                  <option value="cpp">C++</option>
+                  <option value="go">Go</option>
+                  <option value="rust">Rust</option>
+                  <option value="php">PHP</option>
+                  <option value="ruby">Ruby</option>
+                  <option value="swift">Swift</option>
+                  <option value="kotlin">Kotlin</option>
+                  <option value="sql">SQL</option>
+                  <option value="html">HTML</option>
+                  <option value="css">CSS</option>
+                </select>
+                <button
+                  class="icon-btn"
+                  id="pasteBtn"
+                  title="Paste from clipboard"
+                >
+                  📋
                 </button>
+                <button class="icon-btn" id="uploadBtn" title="Upload file">
+                  📁
+                </button>
+              </div>
+            </div>
+            <div class="code-editor-wrapper">
+              <div class="line-numbers" id="lineNumbers"></div>
+              <textarea
+                id="codeInput"
+                placeholder="// Paste your code here...&#10;// Supports multiple languages&#10;// Line numbers shown automatically"
+                spellcheck="false"
+              ></textarea>
+            </div>
+            <div class="input-stats">
+              <span id="lineCount">Lines: 0</span>
+              <span id="charCount">Chars: 0</span>
+              <span id="wordCount">Words: 0</span>
+            </div>
+          </div>
+
+          <!-- Output Panel -->
+          <div class="panel output-panel" id="outputPanel">
+            <div class="panel-header">
+              <h3>✨ Improved Code</h3>
+              <div class="panel-actions">
+                <button class="icon-btn" id="copyBtn" title="Copy to clipboard">
+                  📋
+                </button>
+                <button class="icon-btn" id="downloadBtn" title="Download file">
+                  💾
+                </button>
+                <button class="icon-btn" id="diffBtn" title="Toggle diff view">
+                  🔄
+                </button>
+              </div>
+            </div>
+            <div class="output-content" id="outputSection">
+              <div class="empty-state" id="emptyState">
+                <div class="empty-icon">🚀</div>
+                <p>Your improved code will appear here</p>
+                <span>Select a mode and click "Improve Code"</span>
+              </div>
+              <pre
+                id="outputCode"
+                class="language-javascript line-numbers"
+                style="display: none"
+              ></pre>
+              <!-- Diff View Container -->
+              <div
+                class="diff-container"
+                id="diffContainer"
+                style="display: none"
+              >
+                <div class="diff-header">
+                  <span class="diff-legend">
+                    <span class="diff-removed-label">━ Removed</span>
+                    <span class="diff-added-label">+ Added</span>
+                  </span>
+                  <button class="btn-small" id="diffModeToggle">
+                    Split View
+                  </button>
+                </div>
+                <div class="diff-content" id="diffContent">
+                  <div class="diff-pane original-pane">
+                    <div class="diff-pane-header">Original Code</div>
+                    <pre id="diffOriginal"></pre>
+                  </div>
+                  <div class="diff-pane improved-pane">
+                    <div class="diff-pane-header">Improved Code</div>
+                    <pre id="diffImproved"></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+          <!-- Mode Selection -->
+          <div class="mode-section">
+            <label class="section-label">🎯 Improvement Mode</label>
+            <div class="mode-grid">
+              <label class="mode-card" data-mode="error-repair">
+                <input type="radio" name="mode" value="error-repair" checked />
+                <div class="mode-icon">🔧</div>
+                <div class="mode-info">
+                  <span class="mode-title">Error Repair</span>
+                  <span class="mode-desc">Fix bugs & syntax errors</span>
+                </div>
+              </label>
+              <label class="mode-card" data-mode="visual-enhancement">
+                <input type="radio" name="mode" value="visual-enhancement" />
+                <div class="mode-icon">✨</div>
+                <div class="mode-info">
+                  <span class="mode-title">Enhance</span>
+                  <span class="mode-desc">Improve readability</span>
+                </div>
+              </label>
+              <label class="mode-card" data-mode="optimize">
+                <input type="radio" name="mode" value="optimize" />
+                <div class="mode-icon">⚡</div>
+                <div class="mode-info">
+                  <span class="mode-title">Optimize</span>
+                  <span class="mode-desc">Performance boost</span>
+                </div>
+              </label>
+              <label class="mode-card" data-mode="document">
+                <input type="radio" name="mode" value="document" />
+                <div class="mode-icon">📚</div>
+                <div class="mode-info">
+                  <span class="mode-title">Document</span>
+                  <span class="mode-desc">Add docs & comments</span>
+                </div>
+              </label>
+              <label class="mode-card" data-mode="security">
+                <input type="radio" name="mode" value="security" />
+                <div class="mode-icon">🔒</div>
+                <div class="mode-info">
+                  <span class="mode-title">Security</span>
+                  <span class="mode-desc">Find vulnerabilities</span>
+                </div>
+              </label>
+              <label class="mode-card" data-mode="test">
+                <input type="radio" name="mode" value="test" />
+                <div class="mode-icon">🧪</div>
+                <div class="mode-info">
+                  <span class="mode-title">Test Gen</span>
+                  <span class="mode-desc">Create unit tests</span>
+                </div>
+              </label>
+              <label class="mode-card" data-mode="convert">
+                <input type="radio" name="mode" value="convert" />
+                <div class="mode-icon">🔄</div>
+                <div class="mode-info">
+                  <span class="mode-title">Convert</span>
+                  <span class="mode-desc">Change language</span>
+                </div>
+              </label>
+              <label class="mode-card" data-mode="explain">
+                <input type="radio" name="mode" value="explain" />
+                <div class="mode-icon">💡</div>
+                <div class="mode-info">
+                  <span class="mode-title">Explain</span>
+                  <span class="mode-desc">Understand code</span>
+                </div>
+              </label>
+              <label class="mode-card nl-mode" data-mode="nl-to-code">
+                <input type="radio" name="mode" value="nl-to-code" />
+                <div class="mode-icon">💬</div>
+                <div class="mode-info">
+                  <span class="mode-title">NL → Code</span>
+                  <span class="mode-desc">Describe to create</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Conditional Inputs -->
+          <div class="conditional-inputs">
+            <!-- Natural Language Input (for nl-to-code mode) -->
+            <div
+              class="form-group nl-input-group"
+              id="nlInputGroup"
+              style="display: none"
+            >
+              <label for="nlDescription">💬 Describe the Code You Want:</label>
+              <textarea
+                id="nlDescription"
+                placeholder="e.g., Create a function that validates email addresses and returns true/false..."
+                rows="3"
+              ></textarea>
+              <div class="nl-suggestions">
+                <span
+                  class="nl-chip"
+                  data-text="Create a REST API endpoint that handles user authentication"
+                  >REST API</span
+                >
+                <span
+                  class="nl-chip"
+                  data-text="Write a function to sort an array of objects by a specific property"
+                  >Sort Array</span
+                >
+                <span
+                  class="nl-chip"
+                  data-text="Build a class that manages a shopping cart with add, remove, and total methods"
+                  >Class Builder</span
+                >
+                <span
+                  class="nl-chip"
+                  data-text="Create a React component that displays a paginated list with search"
+                  >React Component</span
+                >
+              </div>
             </div>
 
-            <div class="output-section" id="outputSection" style="display: none;">
-                <div class="output-header">
-                    <h2>Improved Code:</h2>
-                    <button id="copyBtn" class="btn-secondary">
-                        📋 Copy to Clipboard
-                    </button>
-                </div>
-                <div class="output-content">
-                    <pre id="outputCode"></pre>
-                </div>
-                <div class="explanation" id="explanationSection" style="display: none;">
-                    <h3>What was improved:</h3>
-                    <p id="explanationText"></p>
-                </div>
+            <!-- Error Input (for error-repair mode) -->
+            <div class="form-group error-input-group" id="errorInputGroup">
+              <label for="errorInput">🚨 Console Error (Optional):</label>
+              <textarea
+                id="errorInput"
+                placeholder="Paste the error message from your console..."
+                rows="3"
+              ></textarea>
             </div>
 
-            <div class="loading" id="loading" style="display: none;">
-                <div class="spinner"></div>
-                <p>AI is improving your code...</p>
+            <!-- Target Language (for convert mode) -->
+            <div class="form-group" id="targetLangGroup" style="display: none">
+              <label for="targetLanguage">🎯 Convert To:</label>
+              <select id="targetLanguage">
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="csharp">C#</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+                <option value="swift">Swift</option>
+                <option value="kotlin">Kotlin</option>
+              </select>
             </div>
-        </main>
+          </div>
 
-        <footer>
-            <p>Powered by AI • Built with ❤️</p>
-        </footer>
+          <!-- Additional Instructions -->
+          <div class="form-group">
+            <label for="additionalInstructions"
+              >💬 Additional Instructions (Optional):</label
+            >
+            <textarea
+              id="additionalInstructions"
+              placeholder="e.g., 'Use async/await', 'Follow PEP8', 'Add TypeScript types'..."
+              rows="2"
+            ></textarea>
+          </div>
+
+          <!-- AI Provider Settings (Collapsible) -->
+          <div class="settings-section">
+            <div class="settings-header" id="settingsToggle">
+              <span>⚙️ AI Provider Settings</span>
+              <span class="toggle-icon">▼</span>
+            </div>
+            <div class="settings-content" id="settingsContent">
+              <div class="form-row">
+                <div class="form-group half">
+                  <label for="aiProvider">AI Provider:</label>
+                  <select id="aiProvider">
+                    <option value="mock">Demo Mode (No API)</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="groq">Groq</option>
+                    <option value="ollama">Ollama (Local)</option>
+                  </select>
+                </div>
+                <div class="form-group half">
+                  <label for="aiModel">Model:</label>
+                  <select id="aiModel">
+                    <option value="mock">Demo Mode</option>
+                  </select>
+                </div>
+              </div>
+              <div
+                class="form-group api-key-group"
+                id="apiKeyGroup"
+                style="display: none"
+              >
+                <label for="apiKey">API Key:</label>
+                <div class="api-key-input">
+                  <input
+                    type="password"
+                    id="apiKey"
+                    placeholder="Enter your API key..."
+                  />
+                  <button type="button" id="toggleApiKey" class="btn-icon">
+                    👁️
+                  </button>
+                  <button
+                    type="button"
+                    id="saveApiKey"
+                    class="btn-icon"
+                    title="Save API Key"
+                  >
+                    💾
+                  </button>
+                </div>
+                <small class="api-hint" id="apiHint"></small>
+              </div>
+              <div class="form-group" id="ollamaUrlGroup" style="display: none">
+                <label for="ollamaUrl">Ollama URL:</label>
+                <input
+                  type="text"
+                  id="ollamaUrl"
+                  placeholder="http://localhost:11434"
+                  value="http://localhost:11434"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Action Button -->
+          <button id="improveBtn" class="btn-primary">
+            <span class="btn-icon-left">✨</span>
+            <span class="btn-text">Improve Code</span>
+            <span class="btn-shortcut">Ctrl+Enter</span>
+          </button>
+        </div>
+
+        <!-- Explanation/Analysis Panel -->
+        <div class="analysis-panel" id="analysisPanel" style="display: none">
+          <div class="panel-header">
+            <h3>📊 Analysis & Changes</h3>
+            <div class="panel-tabs">
+              <button class="tab-btn active" data-tab="changes">Changes</button>
+              <button class="tab-btn" data-tab="metrics">Metrics</button>
+              <button class="tab-btn" data-tab="suggestions">AI Chat</button>
+            </div>
+          </div>
+          <div class="tab-content" id="changesTab">
+            <div id="explanationText"></div>
+          </div>
+          <div class="tab-content" id="metricsTab" style="display: none">
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <span class="metric-value" id="metricLines">-</span>
+                <span class="metric-label">Lines Changed</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-value" id="metricIssues">-</span>
+                <span class="metric-label">Issues Fixed</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-value" id="metricQuality">-</span>
+                <span class="metric-label">Quality Score</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-value" id="metricTime">-</span>
+                <span class="metric-label">Process Time</span>
+              </div>
+            </div>
+          </div>
+          <div class="tab-content" id="suggestionsTab" style="display: none">
+            <div class="chat-container">
+              <div class="chat-quick-prompts">
+                <span
+                  class="quick-prompt"
+                  data-prompt="What were the main changes?"
+                  >What changed?</span
+                >
+                <span
+                  class="quick-prompt"
+                  data-prompt="Why did you make these specific improvements?"
+                  >Why these changes?</span
+                >
+                <span
+                  class="quick-prompt"
+                  data-prompt="Are there any other issues I should know about?"
+                  >Other issues?</span
+                >
+                <span
+                  class="quick-prompt"
+                  data-prompt="How can I improve this code further?"
+                  >More improvements?</span
+                >
+              </div>
+              <div class="chat-messages" id="chatMessages">
+                <div class="chat-message ai">
+                  <div class="message-avatar">🤖</div>
+                  <div class="message-content">
+                    I've analyzed your code. Ask me anything about the
+                    improvements!
+                  </div>
+                </div>
+              </div>
+              <div class="chat-input-container">
+                <input
+                  type="text"
+                  id="chatInput"
+                  placeholder="Ask about the code changes, request modifications, or get explanations..."
+                />
+                <button id="sendChatBtn" class="btn-icon" title="Send message">
+                  🚀
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading" style="display: none">
+          <div class="loading-content">
+            <div class="ai-animation">
+              <div class="ai-core"></div>
+              <div class="ai-ring ring1"></div>
+              <div class="ai-ring ring2"></div>
+              <div class="ai-ring ring3"></div>
+            </div>
+            <p class="loading-text" id="loadingText">Analyzing code...</p>
+            <div class="loading-progress">
+              <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <span class="loading-step" id="loadingStep"
+              >Initializing AI...</span
+            >
+          </div>
+        </div>
+
+        <!-- History Modal -->
+        <div class="modal" id="historyModal" style="display: none">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>📜 Code History</h3>
+              <button class="modal-close" id="closeHistoryModal">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="history-list" id="historyList">
+                <p class="empty-history">
+                  No history yet. Start improving code!
+                </p>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-secondary" id="clearHistoryBtn">
+                Clear History
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Export Modal -->
+        <div class="modal" id="exportModal" style="display: none">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>📤 Export Code</h3>
+              <button class="modal-close" id="closeExportModal">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="export-options">
+                <button class="export-btn" data-format="file">
+                  <span class="export-icon">📄</span>
+                  <span>Download File</span>
+                </button>
+                <button class="export-btn" data-format="gist">
+                  <span class="export-icon">🔗</span>
+                  <span>Create Gist</span>
+                </button>
+                <button class="export-btn" data-format="markdown">
+                  <span class="export-icon">📝</span>
+                  <span>Markdown Report</span>
+                </button>
+                <button class="export-btn" data-format="json">
+                  <span class="export-icon">📦</span>
+                  <span>JSON Export</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer>
+        <div class="footer-content">
+          <p>AI Code Improver Pro • Powered by Advanced AI</p>
+          <div class="footer-links">
+            <span
+              >⌨️ Shortcuts: Ctrl+Enter (Run) • Ctrl+H (History) • Ctrl+S
+              (Save)</span
+            >
+          </div>
+        </div>
+      </footer>
     </div>
 
+    <!-- Hidden file input for upload -->
+    <input
+      type="file"
+      id="fileInput"
+      accept=".js,.ts,.py,.java,.cs,.cpp,.go,.rs,.php,.rb,.swift,.kt,.sql,.html,.css,.json,.md"
+      style="display: none"
+    />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
     <script src="script.js"></script>
-</body>
+  </body>
 </html>
