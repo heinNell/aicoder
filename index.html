@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Code Improver</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 AI Code Improver</h1>
+            <p class="subtitle">Paste your code, choose your improvement type, and let AI do the magic!</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <div class="form-group">
+                    <label for="codeInput">Your Code:</label>
+                    <textarea 
+                        id="codeInput" 
+                        placeholder="Paste your code snippet here..."
+                        rows="10"
+                    ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="improvementMode">Improvement Mode:</label>
+                    <select id="improvementMode">
+                        <option value="error-repair">Error Repair</option>
+                        <option value="visual-enhancement">Visual Enhancement</option>
+                    </select>
+                </div>
+
+                <div class="form-group error-input-group">
+                    <label for="errorInput">Console Error (Optional):</label>
+                    <textarea 
+                        id="errorInput" 
+                        placeholder="Paste console error message here if you have one..."
+                        rows="4"
+                    ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="additionalInstructions">Additional Instructions (Optional):</label>
+                    <textarea 
+                        id="additionalInstructions" 
+                        placeholder="Any specific improvements you want? (e.g., 'add comments', 'improve variable names', 'add error handling')"
+                        rows="3"
+                    ></textarea>
+                </div>
+
+                <button id="improveBtn" class="btn-primary">
+                    ✨ Improve Code
+                </button>
+            </div>
+
+            <div class="output-section" id="outputSection" style="display: none;">
+                <div class="output-header">
+                    <h2>Improved Code:</h2>
+                    <button id="copyBtn" class="btn-secondary">
+                        📋 Copy to Clipboard
+                    </button>
+                </div>
+                <div class="output-content">
+                    <pre id="outputCode"></pre>
+                </div>
+                <div class="explanation" id="explanationSection" style="display: none;">
+                    <h3>What was improved:</h3>
+                    <p id="explanationText"></p>
+                </div>
+            </div>
+
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>AI is improving your code...</p>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by AI • Built with ❤️</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
