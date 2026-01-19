@@ -115,13 +115,13 @@ function showError(message) {
 
 // Allow Ctrl+Enter to submit
 codeInput.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !improveBtn.disabled) {
         improveBtn.click();
     }
 });
 
 errorInput.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !improveBtn.disabled) {
         improveBtn.click();
     }
 });

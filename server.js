@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 
 // Initialize OpenAI
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Middleware
@@ -87,6 +87,10 @@ Return ONLY the enhanced code without any explanations or markdown formatting.`;
       temperature: 0.3,
       max_tokens: 2000,
     });
+
+    if (!response.choices || response.choices.length === 0) {
+      throw new Error('No response received from AI');
+    }
 
     const improvedCode = response.choices[0].message.content.trim();
     
