@@ -85,12 +85,22 @@ async function callOpenAI(code: string, mode: string, model: string, apiKey: str
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'OpenAI API request failed');
+    let errorMessage = `OpenAI API request failed (${response.status})`;
+    try {
+      const error = await response.json();
+      errorMessage = error.error?.message || errorMessage;
+    } catch (e) {
+      // Response is not JSON, use default message
+    }
+    throw new Error(errorMessage);
   }
 
-  const data = await response.json();
-  return data.choices[0]?.message?.content || 'No response generated';
+  try {
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'No response generated';
+  } catch (e) {
+    throw new Error('OpenAI returned an invalid JSON response');
+  }
 }
 
 async function callAnthropic(code: string, mode: string, model: string, apiKey: string) {
@@ -124,12 +134,22 @@ async function callAnthropic(code: string, mode: string, model: string, apiKey: 
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'Anthropic API request failed');
+    let errorMessage = `Anthropic API request failed (${response.status})`;
+    try {
+      const error = await response.json();
+      errorMessage = error.error?.message || errorMessage;
+    } catch (e) {
+      // Response is not JSON, use default message
+    }
+    throw new Error(errorMessage);
   }
 
-  const data = await response.json();
-  return data.content[0]?.text || 'No response generated';
+  try {
+    const data = await response.json();
+    return data.content[0]?.text || 'No response generated';
+  } catch (e) {
+    throw new Error('Anthropic returned an invalid JSON response');
+  }
 }
 
 async function callGoogle(code: string, mode: string, model: string, apiKey: string) {
@@ -166,12 +186,22 @@ async function callGoogle(code: string, mode: string, model: string, apiKey: str
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'Google API request failed');
+    let errorMessage = `Google API request failed (${response.status})`;
+    try {
+      const error = await response.json();
+      errorMessage = error.error?.message || errorMessage;
+    } catch (e) {
+      // Response is not JSON, use default message
+    }
+    throw new Error(errorMessage);
   }
 
-  const data = await response.json();
-  return data.candidates[0]?.content?.parts[0]?.text || 'No response generated';
+  try {
+    const data = await response.json();
+    return data.candidates[0]?.content?.parts[0]?.text || 'No response generated';
+  } catch (e) {
+    throw new Error('Google API returned an invalid JSON response');
+  }
 }
 
 async function callOllama(code: string, mode: string, model: string, ollamaUrl: string = 'http://localhost:11434') {
@@ -190,10 +220,22 @@ async function callOllama(code: string, mode: string, model: string, ollamaUrl: 
   });
 
   if (!response.ok) {
-    throw new Error('Ollama API request failed. Make sure Ollama is running.');
+    let errorMessage = `Ollama API request failed (${response.status}). Make sure Ollama is running.`;
+    try {
+      const error = await response.json();
+      errorMessage = error.error || errorMessage;
+    } catch (e) {
+      // Response is not JSON, use default message
+    }
+    throw new Error(errorMessage);
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    throw new Error('Ollama returned an invalid response. Check if the model is installed.');
+  }
   return data.response || 'No response generated';
 }
 
