@@ -344,6 +344,30 @@ main {
   color: var(--text-muted);
 }
 
+.input-stats .token-estimate {
+  margin-left: auto;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+}
+
+.input-stats .token-estimate.warning {
+  background: var(--warning-light);
+  color: var(--warning);
+  font-weight: 600;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
 /* ============================================
    LANGUAGE SELECT
    ============================================ */
@@ -478,6 +502,37 @@ main {
   font-family: "JetBrains Mono", monospace;
   font-size: 13px;
   line-height: 1.6;
+}
+
+.output-code {
+  margin: 0;
+  padding: 16px;
+  background: var(--bg-code);
+  color: #d4d4d4;
+  overflow-x: auto;
+  height: 100%;
+}
+
+.output-code code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: inherit;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .output-section {
@@ -1788,3 +1843,246 @@ code[class*="language-"] {
   border-right: 1px solid var(--bg-code-light) !important;
 }
 
+/* ============================================
+   MODAL & SETTINGS STYLES
+   ============================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.modal-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.settings-section {
+  margin-bottom: 1.5rem;
+}
+
+.settings-section:last-of-type {
+  margin-bottom: 2rem;
+}
+
+.settings-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.settings-select,
+.settings-input {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  transition: all var(--transition-fast);
+}
+
+.settings-select:hover,
+.settings-input:hover {
+  border-color: var(--primary);
+}
+
+.settings-select:focus,
+.settings-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.settings-hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.btn-secondary {
+  padding: 0.625rem 1.25rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-focus);
+}
+
+.btn-primary {
+  padding: 0.625rem 1.25rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Settings Button in Header */
+.header-stats button.quick-btn {
+  margin-left: auto;
+}
+
+/* ============================================
+   NOTIFICATION TOAST
+   ============================================ */
+
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: white;
+  padding: 1rem 1.5rem;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 2000;
+  animation: slideInRight 0.3s ease;
+  max-width: 400px;
+  border-left: 4px solid var(--primary);
+}
+
+.notification-success {
+  border-left-color: var(--success);
+  background: var(--success-light);
+}
+
+.notification-error {
+  border-left-color: var(--danger);
+  background: var(--danger-light);
+}
+
+.notification-info {
+  border-left-color: var(--info);
+  background: var(--info-light);
+}
+
+.notification span {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all var(--transition-fast);
+}
+
+.notification-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--text-primary);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

@@ -14,6 +14,12 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css"
       rel="stylesheet"
     />
+    <!-- Diff2Html for side-by-side diff view -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css"
+    />
   </head>
   <body>
     <div class="container">
@@ -46,6 +52,13 @@
             title="Auto-Format (Ctrl+Shift+F)"
           >
             📐 Format
+          </button>
+          <button
+            class="quick-btn"
+            id="compareBtn"
+            title="Compare Models (Ctrl+Shift+C)"
+          >
+            ⚖️ Compare
           </button>
           <button
             class="quick-btn"
@@ -115,60 +128,77 @@
               <span id="charCount">Chars: 0</span>
               <span id="wordCount">Words: 0</span>
             </div>
+            <!-- Code Quality Score Panel -->
+            <div class="quality-score-panel" id="qualityScorePanel">
+              <div class="quality-header">
+                <span class="quality-label">📊 Code Quality</span>
+                <span class="quality-value" id="qualityValue">--</span>
+              </div>
+              <div class="quality-meter">
+                <div class="quality-bar" id="qualityBar"></div>
+              </div>
+              <div class="quality-issues" id="qualityIssues"></div>
+              <div class="complexity-metrics" id="complexityMetrics">
+                <div class="metric-item">
+                  <span class="metric-label">Complexity:</span>
+                  <span class="metric-value" id="complexityValue">0</span>
+                </div>
+                <div class="metric-item">
+                  <span class="metric-label">Functions:</span>
+                  <span class="metric-value" id="functionsCount">0</span>
+                </div>
+                <div class="metric-item">
+                  <span class="metric-label">Issues:</span>
+                  <span class="metric-value" id="issuesCount">0</span>
+                </div>
+              </div>
+            </div>
+            <!-- AI Suggestions Panel -->
+            <div class="ai-suggestions-panel" id="aiSuggestionsPanel" style="display: none;">
+              <div class="suggestions-header">
+                <span class="suggestions-label">💡 AI Suggestions</span>
+                <button class="suggestions-refresh" id="refreshSuggestions" title="Refresh Suggestions">
+                  🔄
+                </button>
+              </div>
+              <div class="suggestions-list" id="suggestionsList"></div>
+            </div>
           </div>
 
           <!-- Output Panel -->
           <div class="panel output-panel" id="outputPanel">
-            <div class="panel-header">
-              <h3>✨ Improved Code</h3>
-              <div class="panel-actions">
-                <button class="icon-btn" id="copyBtn" title="Copy to clipboard">
-                  📋
-                </button>
-                <button class="icon-btn" id="downloadBtn" title="Download file">
-                  💾
-                </button>
-                <button class="icon-btn" id="diffBtn" title="Toggle diff view">
-                  🔄
-                </button>
-              </div>
-            </div>
-            <div class="output-content" id="outputSection">
-              <div class="empty-state" id="emptyState">
-                <div class="empty-icon">🚀</div>
-                <p>Your improved code will appear here</p>
-                <span>Select a mode and click "Improve Code"</span>
-              </div>
-              <pre
-                id="outputCode"
-                class="language-javascript line-numbers"
-                style="display: none"
-              ></pre>
-              <!-- Diff View Container -->
-              <div
-                class="diff-container"
-                id="diffContainer"
-                style="display: none"
-              >
-                <div class="diff-header">
-                  <span class="diff-legend">
-                    <span class="diff-removed-label">━ Removed</span>
-                    <span class="diff-added-label">+ Added</span>
-                  </span>
-                  <button class="btn-small" id="diffModeToggle">
-                    Split View
+            <div class="output-container">
+              <div class="output-header">
+                <span class="output-title">✨ Improved Code</span>
+                <div class="output-actions">
+                  <button
+                    class="action-btn"
+                    id="copyBtn"
+                    title="Copy to Clipboard"
+                  >
+                    📋 Copy
+                  </button>
+                  <button
+                    class="action-btn"
+                    id="toggleViewBtn"
+                    title="Toggle Diff View"
+                  >
+                    ↔️ Diff
                   </button>
                 </div>
-                <div class="diff-content" id="diffContent">
-                  <div class="diff-pane original-pane">
-                    <div class="diff-pane-header">Original Code</div>
-                    <pre id="diffOriginal"></pre>
-                  </div>
-                  <div class="diff-pane improved-pane">
-                    <div class="diff-pane-header">Improved Code</div>
-                    <pre id="diffImproved"></pre>
-                  </div>
+              </div>
+              <div class="output-content">
+                <div id="emptyState" class="empty-state">
+                  <div class="sparkle-container"></div>
+                  <p>Your improved code will appear here</p>
+                  <span>Ready to transform your code!</span>
                 </div>
+                <div id="outputSection" class="output-section hidden">
+                  <pre
+                    class="line-numbers"
+                  ><code id="outputCode" class="language-js"></code></pre>
+                </div>
+                <div id="diffView" class="diff-view hidden"></div>
               </div>
             </div>
           </div>
@@ -435,6 +465,29 @@
                 <span class="metric-label">Process Time</span>
               </div>
             </div>
+            <!-- Complexity Comparison Chart -->
+            <div class="complexity-chart" id="complexityChart">
+              <h4 class="chart-title">📊 Code Complexity Comparison</h4>
+              <div class="chart-bars">
+                <div class="chart-bar-group">
+                  <div class="chart-bar-label">Before</div>
+                  <div class="chart-bar-container">
+                    <div class="chart-bar before" id="chartBarBefore" style="width: 0%">
+                      <span class="chart-bar-value" id="chartValueBefore">0</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="chart-bar-group">
+                  <div class="chart-bar-label">After</div>
+                  <div class="chart-bar-container">
+                    <div class="chart-bar after" id="chartBarAfter" style="width: 0%">
+                      <span class="chart-bar-value" id="chartValueAfter">0</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-improvement" id="chartImprovement"></div>
+            </div>
           </div>
           <div class="tab-content" id="suggestionsTab" style="display: none">
             <div class="chat-container">
@@ -484,7 +537,7 @@
         </div>
 
         <!-- Loading Overlay -->
-        <div class="loading-overlay" id="loading" style="display: none">
+        <div class="loading-overlay" id="loadingOverlay" style="display: none">
           <div class="loading-content">
             <div class="ai-animation">
               <div class="ai-core"></div>
@@ -553,6 +606,32 @@
             </div>
           </div>
         </div>
+
+        <div id="comparisonSection" class="comparison-section hidden">
+          <div class="panels">
+            <div class="panel output-panel">
+              <div class="output-container">
+                <div class="output-header">
+                  <span class="output-title">✨ Improved Code (Primary)</span>
+                  <div class="output-actions">
+                    <button
+                      class="action-btn"
+                      id="copyBtnSecondary"
+                      title="Copy to Clipboard"
+                    >
+                      📋 Copy
+                    </button>
+                  </div>
+                </div>
+                <div class="output-content">
+                  <pre
+                    class="line-numbers"
+                  ><code id="outputCodeSecondary" class="language-js"></code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
 
       <footer>
@@ -579,6 +658,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
+    <!-- Diff & Diff2Html for side-by-side diff view -->
+    <script
+      type="text/javascript"
+      src="https://cdn.jsdelivr.net/npm/diff/dist/diff.min.js"
+    ></script>
+    <script
+      type="text/javascript"
+      src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"
+    ></script>
     <script src="script.js"></script>
   </body>
 </html>
