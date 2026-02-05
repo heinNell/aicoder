@@ -9,8 +9,15 @@ interface ImproveRequest {
   ollamaUrl?: string;
 }
 
-// Approximate token limits per model (conservative estimates)
-const MODEL_LIMITS: Record<string, { input: number; output: number }> = {
+interface TokenLimits {
+  input: number;
+  output: number;
+}
+
+type ModelName = string;
+
+// Extended model limits with fallback defaults
+const MODEL_LIMITS: Record<ModelName, TokenLimits> = {
   'gpt-4o': { input: 120000, output: 16000 },
   'gpt-4o-mini': { input: 120000, output: 16000 },
   'gpt-4-turbo': { input: 120000, output: 4000 },
@@ -23,298 +30,364 @@ const MODEL_LIMITS: Record<string, { input: number; output: number }> = {
   'gemini-pro-vision': { input: 15000, output: 4000 },
 };
 
+// Default limits for unknown models
+const DEFAULT_LIMITS: TokenLimits = { input: 15000, output: 4000 };
+
+// Validation constants
+const MAX_CODE_LENGTH = 10 * 1024 * 1024; // 10MB
+const VALID_MODES = new Set([
+  'error-repair',
+  'visual-enhancement',
+  'optimize',
+  'document',
+  'security',
+  'test',
+  'convert',
+  'explain',
+  'nl-to-code',
+]);
+
+const VALID_PROVIDERS = new Set(['openai', 'anthropic', 'google', 'ollama']);
+
+// Enhanced mode prompts with clearer instructions
+const MODE_PROMPTS: Record<string, string> = {
+  'error-repair': 'Fix all bugs, errors, and potential issues in this code. Add comprehensive error handling where needed. Ensure the code follows best practices.',
+  'visual-enhancement': 'Improve code readability, formatting, and visual structure. Add better comments, organize imports, and follow consistent styling. Use meaningful variable names.',
+  'optimize': 'Optimize this code for better performance, efficiency, and resource usage. Consider time and space complexity improvements.',
+  'document': 'Add comprehensive documentation, JSDoc comments, and inline explanations to explain the code functionality, parameters, and return values.',
+  'security': 'Identify and fix all security vulnerabilities. Implement security best practices including input validation, sanitization, and secure defaults.',
+  'test': 'Generate comprehensive unit tests for this code with good coverage. Include edge cases and error scenarios.',
+  'convert': 'Convert this code to a better, more modern version using best practices and idiomatic patterns for the language.',
+  'explain': 'Explain what this code does in detail, line by line. Describe the purpose and functionality of each component.',
+  'nl-to-code': 'Convert this natural language description into working, production-ready code with proper error handling and documentation.',
+};
+
 // Rough estimation: 1 token ≈ 4 characters for code
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+function getModelLimits(model: string): TokenLimits {
+  return MODEL_LIMITS[model] || DEFAULT_LIMITS;
+}
+
 function getMaxTokens(model: string, codeLength: number): number {
-  const limits = MODEL_LIMITS[model] || { input: 15000, output: 4000 };
+  const limits = getModelLimits(model);
   const estimatedInput = estimateTokens(codeLength.toString());
   
-  // Use larger output tokens for larger inputs
-  if (estimatedInput > 10000) return Math.min(16000, limits.output);
-  if (estimatedInput > 5000) return Math.min(8000, limits.output);
+  // Dynamic output token allocation based on input size
+  if (estimatedInput > 20000) return Math.min(16000, limits.output);
+  if (estimatedInput > 10000) return Math.min(8000, limits.output);
+  if (estimatedInput > 5000) return Math.min(6000, limits.output);
   return Math.min(4000, limits.output);
 }
 
-const MODE_PROMPTS: Record<string, string> = {
-  'error-repair': 'Fix all bugs, errors, and potential issues in this code. Add error handling where needed.',
-  'visual-enhancement': 'Improve code readability, formatting, and visual structure. Add better comments and organization.',
-  'optimize': 'Optimize this code for better performance, efficiency, and resource usage.',
-  'document': 'Add comprehensive documentation, comments, and JSDoc/docstrings to explain the code.',
-  'security': 'Identify and fix all security vulnerabilities. Implement security best practices.',
-  'test': 'Generate comprehensive unit tests for this code with good coverage.',
-  'convert': 'Convert this code to a better, more modern version using best practices.',
-  'explain': 'Explain what this code does in detail, line by line.',
-  'nl-to-code': 'Convert this natural language description into working code.',
-};
+function validateRequest(request: ImproveRequest): string[] {
+  const errors: string[] = [];
 
-async function callOpenAI(code: string, mode: string, model: string, apiKey: string) {
-  const prompt = MODE_PROMPTS[mode] || 'Improve this code';
-  const maxTokens = getMaxTokens(model, code.length);
-  const estimatedTokens = estimateTokens(code);
-  const modelLimit = MODEL_LIMITS[model] || MODEL_LIMITS['gpt-3.5-turbo'];
-  
-  // Check if input is too large
-  if (estimatedTokens > modelLimit.input) {
-    throw new Error(`Code is too large (≈${estimatedTokens} tokens). Maximum for ${model} is ${modelLimit.input} tokens. Consider using a model with a larger context window like GPT-4o or Claude.`);
+  if (!request.code?.trim()) {
+    errors.push('Code is required');
+  } else if (request.code.length > MAX_CODE_LENGTH) {
+    errors.push(`Code exceeds maximum length of ${MAX_CODE_LENGTH} bytes`);
   }
-  
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert code improvement assistant. Provide improved code without explanatory text unless specifically asked to explain. Return only the code.',
-        },
-        {
-          role: 'user',
-          content: `${prompt}\n\nCode:\n${code}`,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: maxTokens,
-    }),
-  });
 
-  if (!response.ok) {
-    let errorMessage = `OpenAI API request failed (${response.status})`;
+  if (!VALID_MODES.has(request.mode)) {
+    errors.push(`Invalid mode. Valid modes are: ${Array.from(VALID_MODES).join(', ')}`);
+  }
+
+  if (!VALID_PROVIDERS.has(request.provider)) {
+    errors.push(`Invalid provider. Valid providers are: ${Array.from(VALID_PROVIDERS).join(', ')}`);
+  }
+
+  if (!request.model?.trim()) {
+    errors.push('Model is required');
+  }
+
+  // Provider-specific validations
+  if (request.provider !== 'ollama' && !request.apiKey?.trim()) {
+    errors.push(`${request.provider} API key is required`);
+  }
+
+  if (request.provider === 'ollama' && request.ollamaUrl) {
     try {
-      const error = await response.json();
-      errorMessage = error.error?.message || errorMessage;
-    } catch (e) {
-      // Response is not JSON, use default message
+      new URL(request.ollamaUrl);
+    } catch {
+      errors.push('Invalid Ollama URL format');
     }
-    throw new Error(errorMessage);
   }
 
-  try {
-    const data = await response.json();
-    return data.choices[0]?.message?.content || 'No response generated';
-  } catch (e) {
-    throw new Error('OpenAI returned an invalid JSON response');
+  return errors;
+}
+
+function buildSystemPrompt(provider: string, mode: string): string {
+  const basePrompt = 'You are an expert code improvement assistant. ';
+  
+  switch (mode) {
+    case 'explain':
+      return basePrompt + 'Provide detailed explanations of the code.';
+    case 'test':
+      return basePrompt + 'Generate comprehensive tests with good coverage.';
+    case 'nl-to-code':
+      return basePrompt + 'Convert natural language descriptions into production-ready code.';
+    default:
+      return basePrompt + 'Provide improved code without explanatory text unless specifically asked to explain. Return only the code.';
   }
 }
 
-async function callAnthropic(code: string, mode: string, model: string, apiKey: string) {
-  const prompt = MODE_PROMPTS[mode] || 'Improve this code';
-  const maxTokens = getMaxTokens(model, code.length);
+async function callAIProvider(
+  provider: string,
+  code: string,
+  mode: string,
+  model: string,
+  apiKey: string,
+  ollamaUrl?: string
+): Promise<string> {
+  const limits = getModelLimits(model);
   const estimatedTokens = estimateTokens(code);
-  const modelLimit = MODEL_LIMITS[model] || { input: 180000, output: 4000 };
   
-  // Check if input is too large
-  if (estimatedTokens > modelLimit.input) {
-    throw new Error(`Code is too large (≈${estimatedTokens} tokens). Maximum for ${model} is ${modelLimit.input} tokens.`);
+  if (estimatedTokens > limits.input) {
+    throw new Error(
+      `Code is too large (≈${estimatedTokens} tokens). Maximum for ${model} is ${limits.input} tokens. ` +
+      `Consider using a model with a larger context window or splitting your code.`
+    );
   }
-  
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: model,
-      max_tokens: maxTokens,
-      messages: [
-        {
-          role: 'user',
-          content: `${prompt}\n\nCode:\n${code}\n\nProvide only the improved code without explanatory text.`,
-        },
-      ],
-    }),
-  });
 
-  if (!response.ok) {
-    let errorMessage = `Anthropic API request failed (${response.status})`;
-    try {
-      const error = await response.json();
-      errorMessage = error.error?.message || errorMessage;
-    } catch (e) {
-      // Response is not JSON, use default message
-    }
-    throw new Error(errorMessage);
-  }
+  const maxTokens = getMaxTokens(model, code.length);
+  const prompt = MODE_PROMPTS[mode] || 'Improve this code';
+  
+  let response: Response;
+  let endpoint: string;
 
   try {
-    const data = await response.json();
-    return data.content[0]?.text || 'No response generated';
-  } catch (e) {
-    throw new Error('Anthropic returned an invalid JSON response');
-  }
-}
+    switch (provider) {
+      case 'openai':
+        endpoint = 'https://api.openai.com/v1/chat/completions';
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              {
+                role: 'system',
+                content: buildSystemPrompt(provider, mode),
+              },
+              {
+                role: 'user',
+                content: `${prompt}\n\nCode:\n${code}`,
+              },
+            ],
+            temperature: 0.7,
+            max_tokens: maxTokens,
+          }),
+        });
+        break;
 
-async function callGoogle(code: string, mode: string, model: string, apiKey: string) {
-  const prompt = MODE_PROMPTS[mode] || 'Improve this code';
-  const maxTokens = getMaxTokens(model, code.length);
-  const estimatedTokens = estimateTokens(code);
-  const modelLimit = MODEL_LIMITS[model] || { input: 30000, output: 8000 };
-  
-  // Check if input is too large
-  if (estimatedTokens > modelLimit.input) {
-    throw new Error(`Code is too large (≈${estimatedTokens} tokens). Maximum for ${model} is ${modelLimit.input} tokens.`);
-  }
-  
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              text: `${prompt}\n\nCode:\n${code}\n\nProvide only the improved code without explanatory text.`,
+      case 'anthropic':
+        endpoint = 'https://api.anthropic.com/v1/messages';
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: model,
+            max_tokens: maxTokens,
+            messages: [
+              {
+                role: 'user',
+                content: `${prompt}\n\nCode:\n${code}\n\n${mode === 'explain' ? 'Provide a detailed explanation.' : 'Provide only the improved code without explanatory text.'}`,
+              },
+            ],
+          }),
+        });
+        break;
+
+      case 'google':
+        endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `${prompt}\n\nCode:\n${code}\n\n${mode === 'explain' ? 'Provide a detailed explanation.' : 'Provide only the improved code without explanatory text.'}`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: maxTokens,
+              topP: 0.95,
+              topK: 40,
             },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: maxTokens,
-      },
-    }),
-  });
+            safetySettings: [
+              {
+                category: 'HARM_CATEGORY_HARASSMENT',
+                threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+              },
+            ],
+          }),
+        });
+        break;
 
-  if (!response.ok) {
-    let errorMessage = `Google API request failed (${response.status})`;
-    try {
-      const error = await response.json();
-      errorMessage = error.error?.message || errorMessage;
-    } catch (e) {
-      // Response is not JSON, use default message
+      case 'ollama':
+        endpoint = `${ollamaUrl || 'http://localhost:11434'}/api/generate`;
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: model,
+            prompt: `${prompt}\n\nCode:\n${code}\n\n${mode === 'explain' ? 'Provide a detailed explanation.' : 'Provide only the improved code without explanatory text.'}`,
+            stream: false,
+            options: {
+              temperature: 0.7,
+              num_predict: maxTokens,
+            },
+          }),
+        });
+        break;
+
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
     }
-    throw new Error(errorMessage);
-  }
 
-  try {
+    if (!response.ok) {
+      let errorMessage = `${provider} API request failed (${response.status})`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error?.message || errorData.error?.error?.message || errorMessage;
+        
+        // Add helpful hints for common errors
+        if (response.status === 401) {
+          errorMessage += '. Please check your API key.';
+        } else if (response.status === 404) {
+          errorMessage += '. The model or endpoint might not exist.';
+        } else if (response.status === 429) {
+          errorMessage += '. Rate limit exceeded. Please try again later.';
+        }
+      } catch {
+        // Use default error message if response isn't JSON
+      }
+      throw new Error(errorMessage);
+    }
+
     const data = await response.json();
-    return data.candidates[0]?.content?.parts[0]?.text || 'No response generated';
-  } catch (e) {
-    throw new Error('Google API returned an invalid JSON response');
+    
+    switch (provider) {
+      case 'openai':
+        return data.choices[0]?.message?.content?.trim() || 'No response generated';
+      case 'anthropic':
+        return data.content[0]?.text?.trim() || 'No response generated';
+      case 'google':
+        return data.candidates[0]?.content?.parts[0]?.text?.trim() || 'No response generated';
+      case 'ollama':
+        return data.response?.trim() || 'No response generated';
+      default:
+        return '';
+    }
+
+  } catch (error) {
+    if (error instanceof Error) {
+      // Re-throw API errors with context
+      if (error.message.includes('API request failed')) {
+        throw error;
+      }
+      throw new Error(`Failed to call ${provider} API: ${error.message}`);
+    }
+    throw new Error(`Unknown error calling ${provider} API`);
   }
 }
 
-async function callOllama(code: string, mode: string, model: string, ollamaUrl: string = 'http://localhost:11434') {
-  const prompt = MODE_PROMPTS[mode] || 'Improve this code';
+function cleanupResponse(response: string, mode: string): string {
+  if (mode === 'explain') {
+    // For explanations, just trim whitespace
+    return response.trim();
+  }
   
-  const response = await fetch(`${ollamaUrl}/api/generate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: model,
-      prompt: `${prompt}\n\nCode:\n${code}\n\nProvide only the improved code without explanatory text.`,
-      stream: false,
-    }),
-  });
-
-  if (!response.ok) {
-    let errorMessage = `Ollama API request failed (${response.status}). Make sure Ollama is running.`;
-    try {
-      const error = await response.json();
-      errorMessage = error.error || errorMessage;
-    } catch (e) {
-      // Response is not JSON, use default message
-    }
-    throw new Error(errorMessage);
-  }
-
-  let data;
-  try {
-    data = await response.json();
-  } catch (e) {
-    throw new Error('Ollama returned an invalid response. Check if the model is installed.');
-  }
-  return data.response || 'No response generated';
+  // Remove code fences for code responses
+  return response
+    .replace(/^```[\w]*\n/gm, '')
+    .replace(/```$/gm, '')
+    .replace(/^`/gm, '')
+    .replace(/`$/gm, '')
+    .trim();
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const body: ImproveRequest = await request.json();
-    const { code, mode, provider, model, apiKey, ollamaUrl } = body;
+  const requestId = Math.random().toString(36).substring(7);
+  const startTime = Date.now();
+  
+  console.log(`[${requestId}] Processing code improvement request`);
 
-    if (!code || !mode || !provider || !model) {
+  try {
+    let body: ImproveRequest;
+    
+    try {
+      body = await request.json();
+    } catch {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Invalid JSON in request body' },
         { status: 400 }
       );
     }
 
-    let improvedCode: string;
-
-    switch (provider) {
-      case 'openai':
-        if (!apiKey) {
-          return NextResponse.json(
-            { error: 'OpenAI API key is required' },
-            { status: 400 }
-          );
-        }
-        improvedCode = await callOpenAI(code, mode, model, apiKey);
-        break;
-
-      case 'anthropic':
-        if (!apiKey) {
-          return NextResponse.json(
-            { error: 'Anthropic API key is required' },
-            { status: 400 }
-          );
-        }
-        improvedCode = await callAnthropic(code, mode, model, apiKey);
-        break;
-
-      case 'google':
-        if (!apiKey) {
-          return NextResponse.json(
-            { error: 'Google API key is required' },
-            { status: 400 }
-          );
-        }
-        improvedCode = await callGoogle(code, mode, model, apiKey);
-        break;
-
-      case 'ollama':
-        improvedCode = await callOllama(code, mode, model, ollamaUrl);
-        break;
-
-      default:
-        return NextResponse.json(
-          { error: 'Invalid provider' },
-          { status: 400 }
-        );
+    // Validate request
+    const validationErrors = validateRequest(body);
+    if (validationErrors.length > 0) {
+      console.warn(`[${requestId}] Validation failed:`, validationErrors);
+      return NextResponse.json(
+        { error: 'Validation failed', details: validationErrors },
+        { status: 400 }
+      );
     }
 
-    // Clean up the response - remove code fences if present
-    improvedCode = improvedCode
-      .replace(/^```[\w]*\n/gm, '')
-      .replace(/```$/gm, '')
-      .trim();
+    const { code, mode, provider, model, apiKey, ollamaUrl } = body;
 
+    // Call AI provider
+    const improvedCode = await callAIProvider(provider, code, mode, model, apiKey, ollamaUrl);
+    
+    // Clean up response
+    const cleanedCode = cleanupResponse(improvedCode, mode);
+    
+    const processingTime = Date.now() - startTime;
+    console.log(`[${requestId}] Request completed in ${processingTime}ms`);
+    
     return NextResponse.json({
       success: true,
-      improvedCode,
+      improvedCode: cleanedCode,
       provider,
       model,
+      mode,
+      processingTime,
     });
 
   } catch (error) {
-    console.error('API Error:', error);
+    const processingTime = Date.now() - startTime;
+    console.error(`[${requestId}] Error after ${processingTime}ms:`, error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Failed to improve code';
+    const status = errorMessage.includes('API key') || errorMessage.includes('Validation') ? 400 : 500;
+    
     return NextResponse.json(
       { 
-        error: error instanceof Error ? error.message : 'Failed to improve code',
+        error: errorMessage,
+        requestId,
+        processingTime,
       },
-      { status: 500 }
+      { status }
     );
   }
 }
