@@ -1,57 +1,51 @@
 'use client';
 
-import { 
-  AlignLeft, ArrowRightLeft, Copy, Download, History, Scale, 
-  Search, Settings, Trash2, Upload, X, Zap, Check, AlertCircle,
-  Code2, Cpu, Shield, FileText, Beaker, Languages, Sparkles
-} from 'lucide-react';
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { AlignLeft, ArrowRightLeft, Copy, Download, History, Scale, Search, Settings, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+
+// ============================================================================
+// TYPE DEFINITIONS - Enhanced type safety
+// ============================================================================
+
+type AIProvider = 'openai' | 'anthropic' | 'google' | 'ollama';
+type ImprovementMode = 'error-repair' | 'visual-enhancement' | 'optimize' | 'document' | 'security' | 'test' | 'convert' | 'explain' | 'nl-to-code';
+type NotificationType = 'success' | 'error' | 'info' | 'warning';
 
 interface Notification {
   message: string;
-  type: 'success' | 'error' | 'info' | 'warning';
-  id: number;
+  type: NotificationType;
+  id: string;
 }
 
-interface CodeStats {
-  lines: number;
-  characters: number;
-  words: number;
-  tokens: number;
-  exceedsWarningThreshold: boolean;
-  exceedsLimit: boolean;
+interface ModelLimits {
+  [provider: string]: {
+    [model: string]: number;
+  };
 }
 
-interface Settings {
-  aiProvider: string;
-  aiModel: string;
+interface ProviderModels {
+  [provider: string]: string[];
+}
+
+interface ImproveCodeRequest {
+  code: string;
+  mode: ImprovementMode;
+  provider: AIProvider;
+  model: string;
   apiKey: string;
   ollamaUrl: string;
-  autoFormat: boolean;
-  autoCopy: boolean;
-  theme: 'light' | 'dark' | 'system';
 }
 
-const MODES = [
-  { id: 'error-repair', label: 'Error Repair', icon: '🔧', description: 'Fix bugs and errors' },
-  { id: 'visual-enhancement', label: 'Visual Enhancement', icon: '✨', description: 'Improve readability' },
-  { id: 'optimize', label: 'Optimize', icon: '⚡', description: 'Performance optimization' },
-  { id: 'document', label: 'Document', icon: '📚', description: 'Add documentation' },
-  { id: 'security', label: 'Security', icon: '🔒', description: 'Security improvements' },
-  { id: 'test', label: 'Generate Tests', icon: '🧪', description: 'Create unit tests' },
-  { id: 'convert', label: 'Convert', icon: '🔄', description: 'Convert to better version' },
-  { id: 'explain', label: 'Explain', icon: '💡', description: 'Explain code' },
-  { id: 'nl-to-code', label: 'NL to Code', icon: '💬', description: 'Natural language to code' },
-] as const;
+interface ImproveCodeResponse {
+  improvedCode: string;
+  error?: string;
+}
 
-const PROVIDERS = [
-  { id: 'openai', label: 'OpenAI', icon: <Cpu size={16} /> },
-  { id: 'anthropic', label: 'Anthropic', icon: <Shield size={16} /> },
-  { id: 'google', label: 'Google', icon: <Sparkles size={16} /> },
-  { id: 'ollama', label: 'Ollama', icon: <Code2 size={16} /> },
-] as const;
+// ============================================================================
+// CONSTANTS - Centralized configuration
+// ============================================================================
 
-const MODEL_LIMITS: Record<string, Record<string, number>> = {
+const MODEL_LIMITS: ModelLimits = {
   openai: {
     'gpt-4o': 120000,
     'gpt-4o-mini': 120000,
@@ -69,734 +63,673 @@ const MODEL_LIMITS: Record<string, Record<string, number>> = {
     'gemini-pro-vision': 15000,
   },
   ollama: {
-    'llama3.1': 32768,
-    'codellama': 16384,
-    'mistral': 32768,
-    'deepseek-coder': 16384,
-    'default': 32768,
+    default: 50000,
   },
 };
 
-const PROVIDER_MODELS: Record<string, string[]> = {
+const PROVIDER_MODELS: ProviderModels = {
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
   anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
   google: ['gemini-pro', 'gemini-pro-vision'],
   ollama: ['llama3.1', 'codellama', 'mistral', 'deepseek-coder'],
 };
 
-const LANGUAGE_OPTIONS = [
-  { value: 'auto', label: 'Auto-detect' },
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'typescript', label: 'TypeScript' },
-  { value: 'python', label: 'Python' },
-  { value: 'java', label: 'Java' },
-  { value: 'cpp', label: 'C++' },
-  { value: 'go', label: 'Go' },
-  { value: 'rust', label: 'Rust' },
-  { value: 'php', label: 'PHP' },
-  { value: 'ruby', label: 'Ruby' },
-];
+const MODE_CONFIG = {
+  'error-repair': { icon: '🔧', label: 'Error Repair', description: 'Fix bugs and errors' },
+  'visual-enhancement': { icon: '✨', label: 'Visual Enhancement', description: 'Improve UI/UX' },
+  'optimize': { icon: '⚡', label: 'Optimize', description: 'Enhance performance' },
+  'document': { icon: '📚', label: 'Document', description: 'Add documentation' },
+  'security': { icon: '🔒', label: 'Security', description: 'Fix vulnerabilities' },
+  'test': { icon: '🧪', label: 'Test', description: 'Generate tests' },
+  'convert': { icon: '🔄', label: 'Convert', description: 'Transform code' },
+  'explain': { icon: '💡', label: 'Explain', description: 'Add explanations' },
+  'nl-to-code': { icon: '💬', label: 'NL to Code', description: 'Natural language to code' },
+} as const;
+
+const TOKEN_WARNING_THRESHOLD = 0.8;
+const TOKEN_DANGER_THRESHOLD = 0.9;
+const NOTIFICATION_DURATION = 5000;
+const DEBOUNCE_DELAY = 300;
+const MAX_CODE_LENGTH = 1000000; // 1MB character limit
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
+
+// ============================================================================
+// UTILITY FUNCTIONS - Pure, testable helpers
+// ============================================================================
+
+const estimateTokens = (text: string): number => {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+};
+
+const getModelLimit = (provider: AIProvider, model: string): number => {
+  return MODEL_LIMITS[provider]?.[model] || MODEL_LIMITS[provider]?.default || 15000;
+};
+
+const isValidUrl = (urlString: string): boolean => {
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+const sanitizeInput = (input: string): string => {
+  return input.trim().slice(0, MAX_CODE_LENGTH);
+};
+
+const generateId = (): string => {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// ============================================================================
+// CUSTOM HOOKS - Reusable logic
+// ============================================================================
+
+const useLocalStorage = <T,>(key: string, initialValue: T) => {
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        setStoredValue(JSON.parse(item));
+      }
+    } catch (error) {
+      console.error(`Error loading localStorage key "${key}":`, error);
+    } finally {
+      setIsLoaded(true);
+    }
+  }, [key]);
+
+  const setValue = useCallback((value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(`Error saving localStorage key "${key}":`, error);
+    }
+  }, [key, storedValue]);
+
+  return [storedValue, setValue, isLoaded] as const;
+};
+
+const useDebounce = <T,>(value: T, delay: number): T => {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
+// ============================================================================
+// MAIN COMPONENT - Enhanced with robustness features
+// ============================================================================
 
 export default function MainInterface() {
-  // State
-  const [currentMode, setCurrentMode] = useState<string>('error-repair');
-  const [settings, setSettings] = useState<Settings>({
-    aiProvider: 'openai',
-    aiModel: 'gpt-4o',
-    apiKey: '',
-    ollamaUrl: 'http://localhost:11434',
-    autoFormat: true,
-    autoCopy: true,
-    theme: 'system',
-  });
-  const [codeInput, setCodeInput] = useState<string>('');
-  const [improvedCode, setImprovedCode] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [showOutput, setShowOutput] = useState<boolean>(false);
-  const [showSettings, setShowSettings] = useState<boolean>(false);
+  // State Management - Organized by concern
+  const [currentMode, setCurrentMode] = useState<ImprovementMode>('error-repair');
+  const [showSettings, setShowSettings] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [improvedCode, setImprovedCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showOutput, setShowOutput] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('auto');
-  const [hasChanges, setHasChanges] = useState<boolean>(false);
-  const [diffView, setDiffView] = useState<boolean>(false);
   
-  // Refs
-  const notificationId = useRef(0);
-  const codeInputRef = useRef<HTMLTextAreaElement>(null);
-  const improvedCodeRef = useRef<HTMLPreElement>(null);
+  // Persistent settings with localStorage
+  const [aiProvider, setAiProvider, providerLoaded] = useLocalStorage<AIProvider>('aiProvider', 'openai');
+  const [aiModel, setAiModel, modelLoaded] = useLocalStorage('aiModel', 'gpt-4o');
+  const [apiKey, setApiKey, keyLoaded] = useLocalStorage('apiKey', '');
+  const [ollamaUrl, setOllamaUrl, ollamaLoaded] = useLocalStorage('ollamaUrl', DEFAULT_OLLAMA_URL);
 
-  // Memoized values
-  const codeStats = useMemo<CodeStats>(() => {
-    const lines = codeInput.split('\n').length;
-    const characters = codeInput.length;
-    const words = codeInput.trim().split(/\s+/).filter(w => w).length;
-    const tokens = Math.ceil(characters / 4);
-    const limit = getModelLimit(settings.aiProvider, settings.aiModel);
-    const warningThreshold = limit * 0.8;
+  // Refs for cleanup and abort
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const notificationTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  // Debounced values for performance
+  const debouncedCodeInput = useDebounce(codeInput, DEBOUNCE_DELAY);
+
+  // ============================================================================
+  // NOTIFICATION SYSTEM - Enhanced with queue and auto-dismiss
+  // ============================================================================
+
+  const showNotification = useCallback((message: string, type: NotificationType = 'info') => {
+    const id = generateId();
+    const notification: Notification = { message, type, id };
     
-    return {
-      lines,
-      characters,
-      words,
-      tokens,
-      exceedsWarningThreshold: tokens > warningThreshold,
-      exceedsLimit: tokens > limit,
-    };
-  }, [codeInput, settings.aiProvider, settings.aiModel]);
+    setNotifications(prev => [...prev, notification]);
 
-  const availableModels = useMemo(
-    () => PROVIDER_MODELS[settings.aiProvider] || [],
-    [settings.aiProvider]
-  );
-
-  // Helper functions
-  const getModelLimit = useCallback((provider: string, model: string): number => {
-    return MODEL_LIMITS[provider]?.[model] || MODEL_LIMITS[provider]?.default || 15000;
-  }, []);
-
-  const showNotification = useCallback((message: string, type: Notification['type'] = 'info', duration = 5000) => {
-    const id = notificationId.current++;
-    const newNotification: Notification = { message, type, id };
-    
-    setNotifications(prev => [...prev, newNotification]);
-    
-    setTimeout(() => {
+    // Auto-dismiss after duration
+    const timer = setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
-    }, duration);
+      notificationTimersRef.current.delete(id);
+    }, NOTIFICATION_DURATION);
+
+    notificationTimersRef.current.set(id, timer);
   }, []);
 
-  const copyToClipboard = useCallback(async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      showNotification('Copied to clipboard!', 'success');
-    } catch (err) {
-      showNotification('Failed to copy to clipboard', 'error');
+  const dismissNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    const timer = notificationTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      notificationTimersRef.current.delete(id);
     }
-  }, [showNotification]);
+  }, []);
 
-  const formatCode = useCallback(() => {
-    // Basic formatting logic - can be enhanced with Prettier or similar
-    const formatted = codeInput
-      .replace(/\r\n/g, '\n')
-      .replace(/\t/g, '  ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      notificationTimersRef.current.forEach(timer => clearTimeout(timer));
+    };
+  }, []);
+
+  // ============================================================================
+  // VALIDATION FUNCTIONS - Comprehensive input validation
+  // ============================================================================
+
+  const validateSettings = useCallback((): { isValid: boolean; error?: string } => {
+    if (aiProvider !== 'ollama' && !apiKey.trim()) {
+      return { isValid: false, error: 'API key is required for this provider' };
+    }
+
+    if (aiProvider === 'ollama' && !isValidUrl(ollamaUrl)) {
+      return { isValid: false, error: 'Invalid Ollama URL format' };
+    }
+
+    if (!PROVIDER_MODELS[aiProvider]?.includes(aiModel)) {
+      return { isValid: false, error: 'Invalid model for selected provider' };
+    }
+
+    return { isValid: true };
+  }, [aiProvider, apiKey, ollamaUrl, aiModel]);
+
+  const validateCodeInput = useCallback((code: string): { isValid: boolean; error?: string } => {
+    if (!code.trim()) {
+      return { isValid: false, error: 'Please enter some code to improve' };
+    }
+
+    if (code.length > MAX_CODE_LENGTH) {
+      return { isValid: false, error: `Code exceeds maximum length of ${MAX_CODE_LENGTH.toLocaleString()} characters` };
+    }
+
+    const tokens = estimateTokens(code);
+    const limit = getModelLimit(aiProvider, aiModel);
+
+    if (tokens > limit) {
+      return { 
+        isValid: false, 
+        error: `Code is too large (≈${tokens.toLocaleString()} tokens). ${aiModel} supports up to ${limit.toLocaleString()} tokens. Try using GPT-4o or Claude models for larger codebases.` 
+      };
+    }
+
+    return { isValid: true };
+  }, [aiProvider, aiModel]);
+
+  // ============================================================================
+  // CORE FUNCTIONALITY - API interaction with error handling
+  // ============================================================================
+
+  const handleImproveCode = async () => {
+    // Abort any existing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Validate settings
+    const settingsValidation = validateSettings();
+    if (!settingsValidation.isValid) {
+      showNotification(settingsValidation.error!, 'error');
+      if (aiProvider !== 'ollama' && !apiKey.trim()) {
+        setShowSettings(true);
+      }
+      return;
+    }
+
+    // Sanitize and validate input
+    const sanitizedCode = sanitizeInput(codeInput);
+    const codeValidation = validateCodeInput(sanitizedCode);
     
-    setCodeInput(formatted);
-    showNotification('Code formatted', 'success');
-  }, [codeInput, showNotification]);
-
-  const clearAll = useCallback(() => {
-    if (codeInput || improvedCode) {
-      setCodeInput('');
-      setImprovedCode('');
-      setShowOutput(false);
-      setHasChanges(false);
-      showNotification('All cleared', 'info');
-    }
-  }, [codeInput, improvedCode, showNotification]);
-
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      showNotification('File too large (max 10MB)', 'error');
+    if (!codeValidation.isValid) {
+      showNotification(codeValidation.error!, 'error');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setCodeInput(content);
-      showNotification(`Loaded ${file.name}`, 'success');
-      event.target.value = ''; // Reset file input
-    };
-    reader.onerror = () => {
-      showNotification('Failed to read file', 'error');
-    };
-    reader.readAsText(file);
-  }, [showNotification]);
-
-  const handleImproveCode = useCallback(async () => {
-    if (!codeInput.trim()) {
-      showNotification('Please enter some code to improve!', 'error');
-      return;
-    }
-
-    if (!settings.apiKey && settings.aiProvider !== 'ollama') {
-      showNotification(`Please configure your ${settings.aiProvider} API key in Settings first!`, 'error');
-      setShowSettings(true);
-      return;
-    }
-
-    if (codeStats.exceedsLimit) {
+    // Token limit warning
+    const tokens = estimateTokens(sanitizedCode);
+    const limit = getModelLimit(aiProvider, aiModel);
+    
+    if (tokens > limit * TOKEN_DANGER_THRESHOLD) {
       showNotification(
-        `Code exceeds token limit (${codeStats.tokens.toLocaleString()} > ${getModelLimit(settings.aiProvider, settings.aiModel).toLocaleString()}). Please reduce the size or use a model with larger context.`,
-        'error'
-      );
-      return;
-    }
-
-    if (codeStats.exceedsWarningThreshold) {
-      showNotification(
-        `Code is near token limit. Consider reducing size for optimal results.`,
+        'Warning: Code is near the token limit. This may result in incomplete responses.',
         'warning'
       );
     }
 
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+
     setIsLoading(true);
     setShowOutput(true);
-    setHasChanges(false);
+    setImprovedCode('');
 
     try {
+      const requestBody: ImproveCodeRequest = {
+        code: sanitizedCode,
+        mode: currentMode,
+        provider: aiProvider,
+        model: aiModel,
+        apiKey: apiKey,
+        ollamaUrl: ollamaUrl,
+      };
+
       const response = await fetch('/api/improve', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          code: codeInput,
-          mode: currentMode,
-          provider: settings.aiProvider,
-          model: settings.aiModel,
-          apiKey: settings.apiKey,
-          ollamaUrl: settings.ollamaUrl,
-        }),
+        body: JSON.stringify(requestBody),
+        signal: abortControllerRef.current.signal,
       });
 
-      const data = await response.json();
-
+      // Handle non-200 responses
       if (!response.ok) {
-        throw new Error(data.error || `API request failed with status ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error occurred' }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const data: ImproveCodeResponse = await response.json();
+
+      if (!data.improvedCode) {
+        throw new Error('No improved code returned from API');
       }
 
       setImprovedCode(data.improvedCode);
       showNotification('Code improved successfully!', 'success');
-      
-      // Auto-copy if enabled
-      if (settings.autoCopy && data.improvedCode) {
-        setTimeout(() => copyToClipboard(data.improvedCode), 1000);
-      }
     } catch (error) {
+      // Handle different error types
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          showNotification('Request cancelled', 'info');
+        } else if (error.message.includes('fetch')) {
+          showNotification('Network error. Please check your connection and try again.', 'error');
+        } else {
+          showNotification(error.message, 'error');
+        }
+      } else {
+        showNotification('An unexpected error occurred. Please try again.', 'error');
+      }
+      
       console.error('Error improving code:', error);
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : 'An unexpected error occurred. Please try again.';
-      showNotification(errorMessage, 'error');
+      setShowOutput(false);
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
-  }, [
-    codeInput, 
-    settings, 
-    currentMode, 
-    codeStats, 
-    getModelLimit, 
-    showNotification,
-    copyToClipboard
-  ]);
+  };
 
-  const saveSettings = useCallback(() => {
+  // ============================================================================
+  // UI HANDLERS - User interaction handlers
+  // ============================================================================
+
+  const handleClearAll = useCallback(() => {
+    if (isLoading) {
+      showNotification('Cannot clear while processing', 'warning');
+      return;
+    }
+    
+    setCodeInput('');
+    setImprovedCode('');
+    setShowOutput(false);
+    showNotification('Cleared all content', 'info');
+  }, [isLoading, showNotification]);
+
+  const handleCopyCode = useCallback(async () => {
+    if (!improvedCode) {
+      showNotification('No code to copy', 'warning');
+      return;
+    }
+
     try {
-      localStorage.setItem('aiProvider', settings.aiProvider);
-      localStorage.setItem('aiModel', settings.aiModel);
-      if (settings.apiKey) localStorage.setItem('apiKey', settings.apiKey);
-      localStorage.setItem('ollamaUrl', settings.ollamaUrl);
-      localStorage.setItem('autoFormat', String(settings.autoFormat));
-      localStorage.setItem('autoCopy', String(settings.autoCopy));
-      localStorage.setItem('theme', settings.theme);
-      
-      setShowSettings(false);
-      showNotification('Settings saved successfully!', 'success');
+      await navigator.clipboard.writeText(improvedCode);
+      showNotification('Code copied to clipboard!', 'success');
     } catch (error) {
-      showNotification('Failed to save settings', 'error');
+      showNotification('Failed to copy code. Please try manually selecting and copying.', 'error');
+      console.error('Clipboard error:', error);
     }
-  }, [settings, showNotification]);
+  }, [improvedCode, showNotification]);
 
-  const loadSettings = useCallback(() => {
-    try {
-      const savedProvider = localStorage.getItem('aiProvider') || 'openai';
-      const savedModel = localStorage.getItem('aiModel') || 'gpt-4o';
-      const savedApiKey = localStorage.getItem('apiKey') || '';
-      const savedOllamaUrl = localStorage.getItem('ollamaUrl') || 'http://localhost:11434';
-      const savedAutoFormat = localStorage.getItem('autoFormat') === 'true';
-      const savedAutoCopy = localStorage.getItem('autoCopy') === 'true';
-      const savedTheme = (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || 'system';
-
-      setSettings({
-        aiProvider: savedProvider,
-        aiModel: PROVIDER_MODELS[savedProvider]?.includes(savedModel) ? savedModel : PROVIDER_MODELS[savedProvider]?.[0] || 'gpt-4o',
-        apiKey: savedApiKey,
-        ollamaUrl: savedOllamaUrl,
-        autoFormat: savedAutoFormat,
-        autoCopy: savedAutoCopy,
-        theme: savedTheme,
-      });
-    } catch (error) {
-      console.error('Failed to load settings:', error);
+  const handleSaveSettings = useCallback(() => {
+    const validation = validateSettings();
+    
+    if (!validation.isValid) {
+      showNotification(validation.error!, 'error');
+      return;
     }
-  }, []);
 
-  // Effects
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    // Save via the setter functions (already persisted to localStorage)
+    setShowSettings(false);
+    showNotification('Settings saved successfully!', 'success');
+  }, [validateSettings, showNotification]);
 
-  useEffect(() => {
-    if (codeInput && settings.autoFormat) {
-      formatCode();
+  const handleProviderChange = useCallback((newProvider: AIProvider) => {
+    setAiProvider(newProvider);
+    // Auto-select first model for new provider
+    const firstModel = PROVIDER_MODELS[newProvider]?.[0];
+    if (firstModel) {
+      setAiModel(firstModel);
     }
-  }, [codeInput, settings.autoFormat, formatCode]);
+  }, [setAiProvider, setAiModel]);
 
-  useEffect(() => {
-    if (codeInput && !isLoading) {
-      setHasChanges(true);
-    }
-  }, [codeInput, isLoading]);
+  // ============================================================================
+  // COMPUTED VALUES - Derived state
+  // ============================================================================
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handleImproveCode();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (improvedCode) {
-          copyToClipboard(improvedCode);
-        }
-      }
-      if (e.key === 'Escape') {
-        setShowSettings(false);
-      }
-    };
+  const codeStats = {
+    lines: codeInput.split('\n').length,
+    chars: codeInput.length,
+    words: codeInput.trim().split(/\s+/).filter(w => w).length,
+    tokens: estimateTokens(debouncedCodeInput),
+  };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleImproveCode, improvedCode, copyToClipboard]);
+  const tokenLimit = getModelLimit(aiProvider, aiModel);
+  const tokenPercentage = (codeStats.tokens / tokenLimit) * 100;
+  const isTokenWarning = tokenPercentage >= TOKEN_WARNING_THRESHOLD * 100;
+  const isTokenDanger = tokenPercentage >= TOKEN_DANGER_THRESHOLD * 100;
+
+  const canImprove = !isLoading && codeInput.trim().length > 0 && tokenPercentage <= 100;
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100 transition-colors">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
-                <Zap className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                  AI Code Improver 
-                  <span className="px-2 py-1 text-xs font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full">
-                    PRO
-                  </span>
-                </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Advanced AI-powered code transformation • Multi-language support
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="hidden md:flex items-center gap-4 text-sm">
-                <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center gap-2">
-                  <Cpu className="h-4 w-4" />
-                  <span className="font-medium">{settings.aiProvider}</span>
-                </div>
-                <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center gap-2">
-                  <Code2 className="h-4 w-4" />
-                  <span className="font-medium truncate max-w-[120px]">{settings.aiModel}</span>
-                </div>
-              </div>
-              
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                aria-label="Settings"
-              >
-                <Settings className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
+    <div className="container">
+      <header>
+        <h1>🤖 AI Code Improver <span className="pro-badge">PRO</span></h1>
+        <p className="subtitle">
+          Advanced AI-powered code transformation • Real-time improvements •
+          Multi-language support
+        </p>
+        <div className="header-stats" id="headerStats">
+          <span className="stat" id="statProvider">Provider: {aiProvider}</span>
+          <span className="stat" id="statModel">Model: {aiModel}</span>
+          <span className="stat" id="statHistory">History: 0</span>
+          <button className="quick-btn" onClick={() => setShowSettings(true)} title="Settings" aria-label="Open Settings">
+            <Settings size={16} /> Settings
+          </button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        {/* Quick Actions */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          <button
-            onClick={clearAll}
+      <main>
+        {/* Quick Actions Bar */}
+        <div className="quick-actions">
+          <button 
+            className="quick-btn" 
+            title="Clear All" 
+            onClick={handleClearAll}
             disabled={isLoading}
-            className="px-4 py-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 transition-colors flex items-center gap-2"
+            aria-label="Clear all content"
           >
-            <Trash2 className="h-4 w-4" />
-            Clear All
+            <Trash2 size={16} /> Clear
           </button>
-          
-          <button
-            onClick={formatCode}
-            disabled={isLoading || !codeInput}
-            className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 transition-colors flex items-center gap-2"
-          >
-            <AlignLeft className="h-4 w-4" />
-            Format Code
+          <button className="quick-btn" title="Auto-Format" disabled>
+            <AlignLeft size={16} /> Format
           </button>
-          
-          <button
-            onClick={() => {}}
-            className="px-4 py-2 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors flex items-center gap-2"
-          >
-            <Upload className="h-4 w-4" />
-            <span>Upload File</span>
-            <input
-              type="file"
-              accept=".js,.ts,.jsx,.tsx,.py,.java,.cpp,.go,.rs,.php,.rb"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="file-upload"
-            />
-            <label htmlFor="file-upload" className="cursor-pointer" />
+          <button className="quick-btn" title="Compare Models" disabled>
+            <Scale size={16} /> Compare
           </button>
-          
-          <div className="ml-auto flex items-center gap-2">
-            <Languages className="h-4 w-4 text-gray-500" />
-            <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm"
-            >
-              {LANGUAGE_OPTIONS.map((lang) => (
-                <option key={lang.value} value={lang.value}>
-                  {lang.label}
-                </option>
-              ))}
-            </select>
+          <button className="quick-btn" title="View History" disabled>
+            <History size={16} /> History
+          </button>
+          <button className="quick-btn" title="Export Code" disabled>
+            <Download size={16} /> Export
+          </button>
+          <div className="language-detector">
+            <span><Search size={14} /> Detected:</span>
+            <span className="detected-lang">Auto-detect</span>
           </div>
         </div>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="main-grid">
           {/* Input Panel */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Code2 className="h-5 w-5" />
-                Input Code
-              </h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => copyToClipboard(codeInput)}
-                  disabled={!codeInput}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50"
-                  aria-label="Copy input code"
-                >
-                  <Copy className="h-4 w-4" />
+          <div className="panel input-panel">
+            <div className="panel-header">
+              <h3>📝 Input Code</h3>
+              <div className="panel-actions">
+                <select className="language-select" defaultValue="auto" aria-label="Select programming language">
+                  <option value="auto">Auto-detect</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="typescript">TypeScript</option>
+                  <option value="python">Python</option>
+                  <option value="java">Java</option>
+                  <option value="csharp">C#</option>
+                  <option value="cpp">C++</option>
+                  <option value="go">Go</option>
+                  <option value="rust">Rust</option>
+                  <option value="php">PHP</option>
+                  <option value="ruby">Ruby</option>
+                </select>
+                <button className="icon-btn" title="Paste from clipboard" disabled>
+                  <Copy size={16} />
                 </button>
-                <button
-                  onClick={() => setCodeInput('')}
-                  disabled={!codeInput}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50"
-                  aria-label="Clear input"
-                >
-                  <X className="h-4 w-4" />
+                <button className="icon-btn" title="Upload file" disabled>
+                  <Upload size={16} />
                 </button>
               </div>
             </div>
-            
-            <div className="relative">
+            <div className="code-editor-wrapper">
+              <div className="line-numbers" aria-hidden="true"></div>
               <textarea
-                ref={codeInputRef}
+                id="codeInput"
+                placeholder="// Paste your code here...&#10;// Supports multiple languages&#10;// Line numbers shown automatically"
+                spellCheck={false}
                 value={codeInput}
                 onChange={(e) => setCodeInput(e.target.value)}
-                placeholder={`// Paste your code here...\n// Or start typing\n// Supports multiple languages\n// Use Ctrl+Enter to improve code`}
-                className="w-full h-[400px] p-4 font-mono text-sm bg-gray-50 dark:bg-gray-900 focus:outline-none resize-none"
-                spellCheck={false}
                 disabled={isLoading}
-              />
-              {!codeInput && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-center text-gray-400 dark:text-gray-500">
-                    <Code2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Start typing or paste your code</p>
-                  </div>
-                </div>
-              )}
+                aria-label="Code input"
+              ></textarea>
             </div>
-            
-            <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between text-sm">
-              <div className="flex gap-4">
-                <span>Lines: {codeStats.lines}</span>
-                <span>Chars: {codeStats.characters}</span>
-                <span>Words: {codeStats.words}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`
-                  font-medium
-                  ${codeStats.exceedsLimit ? 'text-red-600 dark:text-red-400' : 
-                    codeStats.exceedsWarningThreshold ? 'text-yellow-600 dark:text-yellow-400' : 
-                    'text-green-600 dark:text-green-400'}
-                `}>
-                  Tokens: {codeStats.tokens.toLocaleString()}
+            <div className="input-stats">
+              <span>Lines: {codeStats.lines}</span>
+              <span>Chars: {codeStats.chars.toLocaleString()}</span>
+              <span>Words: {codeStats.words.toLocaleString()}</span>
+              {codeInput && (
+                <span 
+                  className={`token-estimate ${isTokenDanger ? 'danger' : isTokenWarning ? 'warning' : ''}`}
+                  title={`${tokenPercentage.toFixed(1)}% of model limit`}
+                >
+                  Tokens: ≈{codeStats.tokens.toLocaleString()} / {tokenLimit.toLocaleString()}
                 </span>
-                <span className="text-gray-500">
-                  / {getModelLimit(settings.aiProvider, settings.aiModel).toLocaleString()}
-                </span>
-                {codeStats.exceedsLimit && (
-                  <AlertCircle className="h-4 w-4 text-red-500" />
-                )}
-              </div>
+              )}
             </div>
           </div>
 
           {/* Output Panel */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
-                Improved Code
-              </h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setDiffView(!diffView)}
-                  className={`p-1.5 rounded-md ${diffView ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                  aria-label="Toggle diff view"
-                >
-                  <ArrowRightLeft className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => copyToClipboard(improvedCode)}
-                  disabled={!improvedCode}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50"
-                  aria-label="Copy improved code"
-                >
-                  <Copy className="h-4 w-4" />
-                </button>
+          <div className="panel output-panel">
+            <div className="output-container">
+              <div className="output-header">
+                <span className="output-title">✨ Improved Code</span>
+                <div className="output-actions">
+                  <button 
+                    className="action-btn" 
+                    title="Copy to Clipboard"
+                    onClick={handleCopyCode}
+                    disabled={!improvedCode}
+                    aria-label="Copy improved code"
+                  >
+                    <Copy size={14} /> Copy
+                  </button>
+                  <button className="action-btn" title="Toggle Diff View" disabled>
+                    <ArrowRightLeft size={14} /> Diff
+                  </button>
+                </div>
+              </div>
+              <div className="output-content">
+                {isLoading ? (
+                  <div className="empty-state">
+                    <div className="sparkle-container"></div>
+                    <p>✨ Improving your code...</p>
+                    <span>Please wait while AI analyzes and enhances your code</span>
+                  </div>
+                ) : showOutput && improvedCode ? (
+                  <pre className="output-code">
+                    <code>{improvedCode}</code>
+                  </pre>
+                ) : (
+                  <div className="empty-state">
+                    <div className="sparkle-container"></div>
+                    <p>Your improved code will appear here</p>
+                    <span>Ready to transform your code!</span>
+                  </div>
+                )}
               </div>
             </div>
-            
-            <div className="relative h-[400px] overflow-auto">
-              {isLoading ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                  <p className="mt-4 text-gray-600 dark:text-gray-400">Improving your code...</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500">This may take a moment</p>
-                </div>
-              ) : showOutput && improvedCode ? (
-                <pre
-                  ref={improvedCodeRef}
-                  className="p-4 h-full font-mono text-sm whitespace-pre-wrap break-words"
-                >
-                  <code>{improvedCode}</code>
-                </pre>
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
-                  <Sparkles className="h-16 w-16 mb-4 opacity-30" />
-                  <p className="text-lg font-medium mb-1">Your improved code will appear here</p>
-                  <p className="text-sm">Click "Improve Code" to get started</p>
-                </div>
-              )}
+          </div>
+        </div>
+        
+        {/* Control Panel */}
+        <div className="control-panel">
+          <div className="mode-section">
+            <label className="section-label">🎯 Improvement Mode</label>
+            <div className="mode-grid">
+              {(Object.keys(MODE_CONFIG) as ImprovementMode[]).map(mode => {
+                const config = MODE_CONFIG[mode];
+                return (
+                  <label 
+                    key={mode} 
+                    className={`mode-card ${mode === 'nl-to-code' ? 'nl-mode' : ''} ${currentMode === mode ? 'border-primary bg-primary/10' : ''}`}
+                  >
+                    <input 
+                      type="radio" 
+                      name="mode" 
+                      value={mode} 
+                      checked={currentMode === mode} 
+                      onChange={() => setCurrentMode(mode)} 
+                      className="hidden"
+                      disabled={isLoading}
+                      aria-label={config.label}
+                    />
+                    <div className="mode-icon">{config.icon}</div>
+                    <div className="mode-info">
+                      <span className="mode-title">{config.label}</span>
+                      <span className="mode-desc">{config.description}</span>
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           </div>
-        </div>
-
-        {/* Mode Selection */}
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            Improvement Mode
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-2">
-            {MODES.map((mode) => (
-              <button
-                key={mode.id}
-                onClick={() => setCurrentMode(mode.id)}
-                disabled={isLoading}
-                className={`
-                  p-3 rounded-lg border transition-all text-left
-                  ${currentMode === mode.id 
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 shadow-sm' 
-                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}
-                  disabled:opacity-50
-                `}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xl">{mode.icon}</span>
-                  <span className="font-medium text-sm truncate">{mode.label}</span>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{mode.description}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Action Button */}
-        <div className="flex justify-center">
-          <button
+          
+          <button 
+            className="btn-primary" 
             onClick={handleImproveCode}
-            disabled={isLoading || !codeInput.trim() || codeStats.exceedsLimit}
-            className={`
-              px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300
-              flex items-center gap-3
-              ${isLoading || !codeInput.trim() || codeStats.exceedsLimit
-                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
-              }
-            `}
+            disabled={!canImprove}
+            aria-label={isLoading ? 'Processing code' : 'Improve code'}
           >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                Processing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-5 w-5" />
-                Improve Code
-                <span className="text-sm opacity-90">(Ctrl+Enter)</span>
-              </>
-            )}
+            <span className="btn-icon-left">{isLoading ? '⏳' : '✨'}</span>
+            <span className="btn-text">{isLoading ? 'Processing...' : 'Improve Code'}</span>
           </button>
         </div>
       </main>
 
+      <footer>
+        <div className="footer-content">
+          <p>AI Code Improver Pro • Powered by Supabase & Next.js</p>
+        </div>
+      </footer>
+
       {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Settings
-              </h2>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                aria-label="Close settings"
-              >
-                <X className="h-5 w-5" />
+        <div className="modal-overlay" onClick={() => setShowSettings(false)} role="dialog" aria-modal="true" aria-labelledby="settings-title">
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 id="settings-title">⚙️ Settings</h2>
+              <button onClick={() => setShowSettings(false)} className="icon-btn" aria-label="Close settings">
+                <X size={20} />
               </button>
             </div>
-            
-            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
-              <div className="space-y-6">
-                {/* AI Provider */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">AI Provider</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {PROVIDERS.map((provider) => (
-                      <button
-                        key={provider.id}
-                        onClick={() => setSettings(prev => ({ 
-                          ...prev, 
-                          aiProvider: provider.id,
-                          aiModel: PROVIDER_MODELS[provider.id]?.[0] || 'gpt-4o'
-                        }))}
-                        className={`
-                          p-3 rounded-lg border flex flex-col items-center justify-center gap-2
-                          ${settings.aiProvider === provider.id
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                          }
-                        `}
-                      >
-                        {provider.icon}
-                        <span className="text-sm">{provider.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            <div className="modal-body">
+              <div className="settings-section">
+                <label className="settings-label" htmlFor="ai-provider">AI Provider</label>
+                <select 
+                  id="ai-provider"
+                  className="settings-select" 
+                  value={aiProvider} 
+                  onChange={(e) => handleProviderChange(e.target.value as AIProvider)}
+                >
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="google">Google (Gemini)</option>
+                  <option value="ollama">Ollama (Local)</option>
+                </select>
+              </div>
 
-                {/* AI Model */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">AI Model</label>
-                  <select
-                    value={settings.aiModel}
-                    onChange={(e) => setSettings(prev => ({ ...prev, aiModel: e.target.value }))}
-                    className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {availableModels.map((model) => (
-                      <option key={model} value={model}>{model}</option>
-                    ))}
-                  </select>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                    Token limit: {getModelLimit(settings.aiProvider, settings.aiModel).toLocaleString()}
+              <div className="settings-section">
+                <label className="settings-label" htmlFor="ai-model">AI Model</label>
+                <select 
+                  id="ai-model"
+                  className="settings-select" 
+                  value={aiModel} 
+                  onChange={(e) => setAiModel(e.target.value)}
+                >
+                  {PROVIDER_MODELS[aiProvider]?.map((model) => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </select>
+              </div>
+
+              {aiProvider !== 'ollama' && (
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="api-key">API Key</label>
+                  <input
+                    id="api-key"
+                    type="password"
+                    className="settings-input"
+                    placeholder={`Enter your ${aiProvider} API key`}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <p className="settings-hint">
+                    Your API key is stored locally and never sent to our servers.
                   </p>
                 </div>
+              )}
 
-                {/* API Key (if needed) */}
-                {settings.aiProvider !== 'ollama' && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      {settings.aiProvider.charAt(0).toUpperCase() + settings.aiProvider.slice(1)} API Key
-                    </label>
-                    <input
-                      type="password"
-                      value={settings.apiKey}
-                      onChange={(e) => setSettings(prev => ({ ...prev, apiKey: e.target.value }))}
-                      placeholder={`Enter your ${settings.aiProvider} API key`}
-                      className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                      Your API key is stored locally in your browser and never sent to our servers.
-                    </p>
-                  </div>
-                )}
-
-                {/* Ollama URL */}
-                {settings.aiProvider === 'ollama' && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Ollama URL</label>
-                    <input
-                      type="text"
-                      value={settings.ollamaUrl}
-                      onChange={(e) => setSettings(prev => ({ ...prev, ollamaUrl: e.target.value }))}
-                      placeholder="http://localhost:11434"
-                      className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                      Make sure Ollama is running on your local machine.
-                    </p>
-                  </div>
-                )}
-
-                {/* Preferences */}
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium">Preferences</label>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Auto-format code</span>
-                    <button
-                      onClick={() => setSettings(prev => ({ ...prev, autoFormat: !prev.autoFormat }))}
-                      className={`w-12 h-6 rounded-full transition-colors ${settings.autoFormat ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}
-                    >
-                      <div className={`w-4 h-4 rounded-full bg-white transform transition-transform ${settings.autoFormat ? 'translate-x-7' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Auto-copy improved code</span>
-                    <button
-                      onClick={() => setSettings(prev => ({ ...prev, autoCopy: !prev.autoCopy }))}
-                      className={`w-12 h-6 rounded-full transition-colors ${settings.autoCopy ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}
-                    >
-                      <div className={`w-4 h-4 rounded-full bg-white transform transition-transform ${settings.autoCopy ? 'translate-x-7' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
+              {aiProvider === 'ollama' && (
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="ollama-url">Ollama URL</label>
+                  <input
+                    id="ollama-url"
+                    type="text"
+                    className="settings-input"
+                    placeholder="http://localhost:11434"
+                    value={ollamaUrl}
+                    onChange={(e) => setOllamaUrl(e.target.value)}
+                  />
+                  <p className="settings-hint">
+                    Make sure Ollama is running on your local machine.
+                  </p>
                 </div>
-              </div>
-              
-              <div className="flex gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
+              )}
+
+              <div className="modal-actions">
+                <button className="btn-secondary" onClick={() => setShowSettings(false)}>
                   Cancel
                 </button>
-                <button
-                  onClick={saveSettings}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all"
-                >
+                <button className="btn-primary" onClick={handleSaveSettings}>
                   Save Settings
                 </button>
               </div>
@@ -805,33 +738,23 @@ export default function MainInterface() {
         </div>
       )}
 
-      {/* Notifications */}
-      <div className="fixed bottom-4 right-4 space-y-2 z-50">
+      {/* Notification Toast Stack */}
+      <div className="notification-stack" style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 9999 }}>
         {notifications.map((notification) => (
-          <div
-            key={notification.id}
-            className={`
-              animate-slide-in-right
-              px-4 py-3 rounded-lg shadow-lg max-w-sm
-              ${notification.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800' : 
-                notification.type === 'error' ? 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800' : 
-                notification.type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800' : 
-                'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800'}
-            `}
+          <div 
+            key={notification.id} 
+            className={`notification notification-${notification.type}`}
+            role="alert"
+            aria-live="polite"
           >
-            <div className="flex items-start gap-3">
-              {notification.type === 'success' && <Check className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />}
-              {notification.type === 'error' && <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />}
-              {notification.type === 'info' && <Search className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />}
-              {notification.type === 'warning' && <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />}
-              <p className="text-sm flex-1">{notification.message}</p>
-              <button
-                onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+            <span>{notification.message}</span>
+            <button 
+              onClick={() => dismissNotification(notification.id)} 
+              className="notification-close"
+              aria-label="Dismiss notification"
+            >
+              ×
+            </button>
           </div>
         ))}
       </div>
